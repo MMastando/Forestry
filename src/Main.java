@@ -3,35 +3,44 @@ import java.util.Scanner;
 import java.util.ArrayList;
 import java.io.*;
 import java.util.Random;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
 
+/**
+ * Main class for forestry simulation that manages multiple forests.
+ * Allows operations such as adding, cutting, growing, and reaping trees,
+ * as well as saving and loading forest data.
+ */
 public class Main {
     private static Scanner scanner = new Scanner(System.in);
     private static ArrayList<Forest> forests = new ArrayList<>();
     private static Random random = new Random();
 
+    /**
+     * Main method to run the forestry simulation.
+     *
+     * @param args Command line arguments that should contain forest filenames to manage.
+     */
     public static void main(String[] args) {
         System.out.println("Welcome to the Forestry Simulation");
         System.out.println("----------------------------------");
 
+        // Check if there are command line arguments provided.
         if (args.length == 0) {
             System.out.println("No forests to manage. Exiting program.");
             return;
         }
 
+        // Load the initial forest based on the first command line argument.
         int currentForestIndex = 0;
         try {
             Forest forest = loadForest(args[currentForestIndex]);
             forests.add(forest);
             System.out.println("Initializing from " + args[currentForestIndex]);
-            System.out.println();
         } catch (Exception e) {
             System.out.println("Error initializing forest from file: " + args[currentForestIndex] + ".csv");
             e.printStackTrace();
         }
 
+        // Main loop to handle user commands.
         while (true) {
             Forest currentForest = forests.get(currentForestIndex);
             System.out.print("(P)rint, (A)dd, (C)ut, (G)row, (R)eap, (S)ave, (L)oad, (N)ext, e(X)it : ");
@@ -40,68 +49,30 @@ public class Main {
             char choice = input.charAt(0);
             switch (choice) {
                 case 'P':
-                    System.out.println();
                     printForest(currentForest);
-                    System.out.println();
                     break;
                 case 'A':
                     addRandomTree(currentForest);
-                    System.out.println();
                     break;
                 case 'C':
                     cutTree(currentForest);
-                    System.out.println();
                     break;
                 case 'G':
-                    currentForest.growForest();
-                    System.out.println();
+                    currentForest.growTreesInForest();
                     break;
                 case 'R':
                     reapTrees(currentForest);
-                    System.out.println();
                     break;
                 case 'S':
                     saveForest(currentForest);
-                    System.out.println();
                     break;
                 case 'L':
-                    System.out.print("Enter forest name: ");
-                    String filename = scanner.nextLine().trim();
-                    Forest newForest = loadNewForest(filename);
-                    if (newForest != null) {
-                        forests.set(currentForestIndex, newForest);
-                    } else {
-                        System.out.println("Old forest retained");
-                    }
-                    System.out.println();
+                    loadNewForestPrompt(currentForestIndex);
                     break;
                 case 'N':
-                    System.out.println("Moving to the next forest");
-                    int nextForestIndex = (currentForestIndex + 1) % args.length; // calculate the index of the next forest
-                    while (true) {
-                        if (nextForestIndex >= args.length) {
-                            System.out.println("No more forests to load. Returning to the first forest.");
-                            nextForestIndex = 0; // reset to the first forest if we've tried all forests
-                        }
-                        System.out.println("Initializing from " + args[nextForestIndex]);
-                        try {
-                            Forest nextForest = loadForest(args[nextForestIndex]);
-                            forests.add(nextForest);
-                            currentForestIndex = forests.size() - 1; // update currentForestIndex to the last index of the list
-                            System.out.println();
-                            break; // break the loop if the forest is loaded successfully
-                        } catch (Exception e) {
-                            System.out.println("Error opening/reading " + args[nextForestIndex] + ".csv");
-                            nextForestIndex = (nextForestIndex + 1) % args.length; // move to the next forest
-                            if (nextForestIndex == currentForestIndex) { // if we've tried all forests and none could be loaded
-                                System.out.println("No valid forests could be loaded. Exiting program.");
-                                return;
-                            }
-                        }
-                    }
+                    currentForestIndex = handleNextForest(args, currentForestIndex);
                     break;
                 case 'X':
-                    System.out.println();
                     System.out.println("Exiting the Forestry Simulation");
                     return;
                 default:
@@ -111,27 +82,41 @@ public class Main {
         }
     }
 
+    /**
+     * Prints detailed information about the trees within the specified forest.
+     * Includes total and average height statistics.
+     *
+     * @param forest The forest to print details for.
+     */
     private static void printForest(Forest forest) {
         ArrayList<Tree> trees = forest.getTrees();
         System.out.println("Forest name: " + forest.getName());
         double totalHeight = 0;
-        for (int i = 0; i < trees.size(); i++) {
-            Tree tree = trees.get(i);
+        for (Tree tree : trees) {
             totalHeight += tree.getHeight();
-            System.out.printf("     %d %-7s %d %7.2f' %5.1f%%\n", i, tree.getSpecies(),
+            System.out.printf("     %d %-7s %d %7.2f' %5.1f%%\n", tree.getSpecies(),
                     tree.getYearPlanted(), tree.getHeight(), tree.getGrowthRate());
         }
         double averageHeight = trees.size() > 0 ? totalHeight / trees.size() : 0;
         System.out.printf("There are %d trees, with an average height of %.2f\n", trees.size(), averageHeight);
     }
 
+    /**
+     * Adds a randomly generated tree to the specified forest.
+     *
+     * @param forest The forest to which a new tree will be added.
+     */
     private static void addRandomTree(Forest forest) {
         Tree tree = new Tree(Tree.Species.values()[random.nextInt(Tree.Species.values().length)],
                 2022, 10 + random.nextDouble() * 10, 10 + random.nextDouble() * 10);
-        forest.addTree(tree);
-        // System.out.println("Added a new tree: " + tree.getSpecies());
+        forest.add(tree);
     }
 
+    /**
+     * Prompts the user to select a tree to cut from the specified forest and removes it.
+     *
+     * @param forest The forest from which a tree will be cut.
+     */
     private static void cutTree(Forest forest) {
         while (true) {
             System.out.print("Tree number to cut down: ");
@@ -139,7 +124,7 @@ public class Main {
             try {
                 int index = Integer.parseInt(input);
                 if (index >= 0 && index < forest.getTrees().size()) {
-                    forest.cutDownTree(index);
+                    forest.cutTree(index);
                     return; // return after successful operation
                 } else {
                     System.out.println("Tree number " + index + " does not exist");
@@ -152,6 +137,12 @@ public class Main {
         }
     }
 
+    /**
+     * Prompts user for a height threshold and reaps trees taller than this height.
+     * Tall trees are replaced with new trees, and details of reaped trees are printed.
+     *
+     * @param forest The forest to reap tall trees from.
+     */
     private static void reapTrees(Forest forest) {
         while (true) {
             System.out.print("Height to reap from: ");
@@ -167,12 +158,19 @@ public class Main {
                 }
                 return; // return after successful operation
             } catch (NumberFormatException e) {
-                System.out.println("That is not an integer");
+                System.out.println("That is not a number");
                 // continue the loop if input is not a number
             }
         }
     }
 
+    /**
+     * Loads a forest from the specified CSV file.
+     *
+     * @param filename The filename (without extension) of the CSV file to load.
+     * @return The loaded forest.
+     * @throws IOException If there is an error reading the file.
+     */
     private static Forest loadForest(String filename) throws IOException {
         Forest forest = new Forest(filename.replace(".csv", ""));
         try (BufferedReader reader = new BufferedReader(new FileReader("src/" + filename + ".csv"))) {
@@ -183,12 +181,17 @@ public class Main {
                 int yearPlanted = Integer.parseInt(parts[1]);
                 double height = Double.parseDouble(parts[2]);
                 double growthRate = Double.parseDouble(parts[3]);
-                forest.addTree(new Tree(species, yearPlanted, height, growthRate));
+                forest.add(new Tree(species, yearPlanted, height, growthRate));
             }
         }
         return forest;
     }
 
+    /**
+     * Saves the specified forest to a file.
+     *
+     * @param forest The forest to save.
+     */
     private static void saveForest(Forest forest) {
         String filename = forest.getName() + ".db";
         try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filename))) {
@@ -198,17 +201,69 @@ public class Main {
         }
     }
 
+    /**
+     * Prompts user for a filename and attempts to load a new forest from file.
+     * If successful, replaces the current forest in the list; otherwise, retains the old forest.
+     *
+     * @param currentForestIndex The index of the current forest being replaced.
+     */
+    private static void loadNewForestPrompt(int currentForestIndex) {
+        System.out.print("Enter forest name: ");
+        String filename = scanner.nextLine().trim();
+        Forest newForest = loadNewForest(filename);
+        if (newForest != null) {
+            forests.set(currentForestIndex, newForest);
+        } else {
+            System.out.println("Old forest retained");
+        }
+    }
+
+    /**
+     * Handles switching to the next forest in the list based on command line arguments.
+     *
+     * @param args The array of command line arguments containing forest filenames.
+     * @param currentForestIndex The current index of the forest being managed.
+     * @return The new current index after switching forests.
+     */
+    private static int handleNextForest(String[] args, int currentForestIndex) {
+        System.out.println("Moving to the next forest");
+        int nextForestIndex = (currentForestIndex + 1) % args.length; // calculate the index of the next forest
+        while (true) {
+            if (nextForestIndex >= args.length) {
+                System.out.println("No more forests to load. Returning to the first forest.");
+                nextForestIndex = 0; // reset to the first forest if we've tried all forests
+            }
+            System.out.println("Initializing from " + args[nextForestIndex]);
+            try {
+                Forest nextForest = loadForest(args[nextForestIndex]);
+                forests.add(nextForest);
+                currentForestIndex = forests.size() - 1; // update currentForestIndex to the last index of the list
+                return currentForestIndex; // break the loop if the forest is loaded successfully
+            } catch (Exception e) {
+                System.out.println("Error opening/reading " + args[nextForestIndex] + ".csv");
+                nextForestIndex = (nextForestIndex + 1) % args.length; // move to the next forest
+                if (nextForestIndex == currentForestIndex) { // if we've tried all forests and none could be loaded
+                    System.out.println("No valid forests could be loaded. Exiting program.");
+                    return -1; // indicate program termination
+                }
+            }
+        }
+    }
+
+    /**
+     * Loads a forest from a .db file.
+     *
+     * @param filename The name of the file to load the forest from.
+     * @return The loaded forest or null if the load fails.
+     */
     private static Forest loadNewForest(String filename) {
         Forest forest = null;
         try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(filename + ".db"))) {
             forest = (Forest) in.readObject();
             System.out.println("Forest '" + filename + "' has been loaded.");
-        } catch (IOException e) {
-            System.out.println("Error opening/reading " + filename + ".db");
-        } catch (ClassNotFoundException e) {
-            System.out.println("Error in data format: " + e.getMessage());
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("Error opening/reading " + filename + ".db: " + e.getMessage());
         }
         return forest;
     }
 }
-
